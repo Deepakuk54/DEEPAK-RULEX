@@ -1,11 +1,11 @@
 const express = require('express');
+const axios = require('axios');
 const wiegine = require('fca-mafiya');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// Main Page UI
 app.get('/', (req, res) => {
     res.send(`
         <!DOCTYPE html>
@@ -13,57 +13,91 @@ app.get('/', (req, res) => {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Deepak Rajput Brand - Extractor</title>
+            <title>Deepak Rajput Brand - Pro Extractor</title>
             <style>
-                body { font-family: sans-serif; background: #0d1117; color: #c9d1d9; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-                .container { width: 100%; max-width: 600px; background: #161b22; padding: 25px; border-radius: 12px; border: 1px solid #30363d; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-                h1 { text-align: center; color: #58a6ff; font-size: 24px; margin-bottom: 20px; border-bottom: 1px solid #30363d; padding-bottom: 10px; }
-                textarea { width: 100%; height: 120px; background: #0d1117; color: #7ee787; border: 1px solid #30363d; border-radius: 6px; padding: 10px; font-family: monospace; box-sizing: border-box; }
-                button { width: 100%; padding: 14px; background: #238636; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 15px; font-size: 16px; transition: 0.3s; }
-                button:hover { background: #2ea043; }
-                #status { margin-top: 15px; text-align: center; color: #ffa657; font-weight: bold; }
-                .result-card { background: #010409; margin-top: 20px; padding: 15px; border-radius: 8px; border: 1px solid #30363d; }
-                .group-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #21262d; font-size: 14px; }
-                .uid { color: #f0883e; font-weight: bold; cursor: pointer; background: #21262d; padding: 3px 7px; border-radius: 4px; }
+                body { font-family: 'Segoe UI', sans-serif; background: #0d1117; color: #c9d1d9; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+                .container { width: 100%; max-width: 650px; background: #161b22; padding: 30px; border-radius: 15px; border: 1px solid #30363d; box-shadow: 0 15px 35px rgba(0,0,0,0.6); }
+                h1 { text-align: center; color: #58a6ff; font-size: 26px; margin-bottom: 5px; text-transform: uppercase; }
+                .brand-sub { text-align: center; color: #8b949e; margin-bottom: 20px; font-size: 13px; }
+                
+                .mode-selector { display: flex; gap: 10px; margin-bottom: 20px; }
+                .mode-btn { flex: 1; padding: 12px; border: 1px solid #30363d; background: #21262d; color: white; cursor: pointer; border-radius: 8px; font-weight: bold; transition: 0.3s; }
+                .mode-btn.active { background: #1f6feb; border-color: #58a6ff; }
+                
+                textarea { width: 100%; height: 130px; background: #0d1117; color: #7ee787; border: 1px solid #30363d; border-radius: 8px; padding: 12px; font-family: monospace; box-sizing: border-box; margin-bottom: 15px; }
+                .main-btn { width: 100%; padding: 15px; background: #238636; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; }
+                .main-btn:hover { background: #2ea043; }
+                
+                #status { margin-top: 20px; text-align: center; color: #ffa657; font-weight: 500; }
+                .account-card { background: #010409; border: 1px solid #30363d; border-radius: 10px; padding: 15px; margin-top: 20px; border-left: 5px solid #58a6ff; }
+                .group-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #21262d; font-size: 14px; }
+                .uid-badge { background: #1f6feb; color: white; padding: 4px 8px; border-radius: 5px; font-family: monospace; cursor: pointer; }
             </style>
         </head>
         <body>
             <div class="container">
                 <h1>Deepak Rajput Brand</h1>
-                <p style="text-align:center; color:#8b949e;">UID Extractor Tool</p>
-                <textarea id="cookieInput" placeholder="Paste your cookies here (one per line)..."></textarea>
-                <button onclick="extract()">GET GROUP UIDs</button>
-                <div id="status">Ready...</div>
+                <div class="brand-sub">Premium Multi-Mode Extractor</div>
+
+                <div class="mode-selector">
+                    <button id="cookieBtn" class="mode-btn active" onclick="setMode('cookie')">COOKIE MODE</button>
+                    <button id="tokenBtn" class="mode-btn" onclick="setMode('token')">TOKEN V7 MODE</button>
+                </div>
+
+                <textarea id="userInput" placeholder="Paste your data here (one per line)..."></textarea>
+                <button class="main-btn" onclick="startExtraction()">START EXTRACTION</button>
+                
+                <div id="status">Ready to scan...</div>
                 <div id="results"></div>
             </div>
+
             <script>
-                async function extract() {
-                    const input = document.getElementById('cookieInput').value.trim();
-                    if(!input) return alert("Bhai, cookies toh daalo!");
-                    const cookies = input.split('\\n').filter(Boolean);
+                let currentMode = 'cookie';
+
+                function setMode(mode) {
+                    currentMode = mode;
+                    document.getElementById('cookieBtn').classList.toggle('active', mode === 'cookie');
+                    document.getElementById('tokenBtn').classList.toggle('active', mode === 'token');
+                    document.getElementById('userInput').placeholder = mode === 'cookie' ? "Paste Cookies here..." : "Paste EAAB... Tokens here...";
+                    document.getElementById('results').innerHTML = '';
+                }
+
+                async function startExtraction() {
+                    const data = document.getElementById('userInput').value.trim().split('\\n').filter(Boolean);
+                    if(data.length === 0) return alert("Pehle data toh daalo!");
+                    
                     const resultsDiv = document.getElementById('results');
                     const status = document.getElementById('status');
                     resultsDiv.innerHTML = '';
-                    for(let i=0; i < cookies.length; i++) {
-                        status.innerText = "Processing Account " + (i+1) + "...";
+
+                    const endpoint = currentMode === 'cookie' ? '/extract-cookie' : '/extract-token';
+
+                    for(let i=0; i < data.length; i++) {
+                        status.innerText = \`Processing \${i+1} of \${data.length}...\`;
                         try {
-                            const res = await fetch('/get-groups', {
+                            const res = await fetch(endpoint, {
                                 method: 'POST',
                                 headers: {'Content-Type': 'application/json'},
-                                body: JSON.stringify({ cookie: cookies[i].trim() })
+                                body: JSON.stringify({ input: data[i].trim() })
                             });
-                            const data = await res.json();
-                            let html = '<div class="result-card"><b>👤 ' + data.name + '</b>';
-                            if(data.groups.length > 0) {
-                                data.groups.forEach(g => {
-                                    html += '<div class="group-row"><span>' + g.name + '</span><span class="uid" onclick="navigator.clipboard.writeText(\\'' + g.id + '\\');alert(\\'Copied!\\')">' + g.id + '</span></div>';
+                            const result = await res.json();
+                            
+                            let html = \`<div class="account-card"><b>👤 \${result.name}</b>\`;
+                            if(result.groups.length > 0) {
+                                result.groups.forEach(g => {
+                                    html += \`<div class="group-item"><span>\${g.name}</span><span class="uid-badge" onclick="copyUID('\${g.id}')">\${g.id}</span></div>\`;
                                 });
-                            } else { html += '<div style="color:red; padding-top:10px;">No groups found.</div>'; }
+                            } else { html += '<p style="color:red">No groups/Invalid data</p>'; }
                             html += '</div>';
                             resultsDiv.innerHTML += html;
                         } catch(e) { console.error(e); }
                     }
-                    status.innerText = "✅ Extraction Complete!";
+                    status.innerText = "✅ Task Finished!";
+                }
+
+                function copyUID(uid) {
+                    navigator.clipboard.writeText(uid);
+                    alert("UID Copied: " + uid);
                 }
             </script>
         </body>
@@ -71,21 +105,28 @@ app.get('/', (req, res) => {
     `);
 });
 
-// API Endpoint
-app.post('/get-groups', (req, res) => {
-    const { cookie } = req.body;
-    wiegine.login(cookie, { logLevel: 'silent' }, (err, api) => {
+// Cookie Extraction Logic
+app.post('/extract-cookie', (req, res) => {
+    const { input } = req.body;
+    wiegine.login(input, { logLevel: 'silent' }, (err, api) => {
         if (err || !api) return res.json({ name: "Dead Cookie", groups: [] });
-        const myID = api.getCurrentUserID();
-        api.getUserInfo(myID, (err, info) => {
-            const accName = (!err && info[myID]) ? info[myID].name : "Facebook User";
-            api.getThreadList(100, null, ["INBOX"], (err, list) => {
-                if (err || !list) return res.json({ name: accName, groups: [] });
-                const groups = list.filter(t => t.isGroup).map(g => ({ name: g.name || "Unnamed Group", id: g.threadID }));
-                res.json({ name: accName, groups: groups });
-            });
+        api.getThreadList(100, null, ["INBOX"], (err, list) => {
+            const groups = (!err && list) ? list.filter(t => t.isGroup).map(g => ({ name: g.name || "Group", id: g.threadID })) : [];
+            res.json({ name: "Account OK", groups: groups });
         });
     });
 });
 
-app.listen(PORT, () => console.log('Brand Extractor Live!'));
+// Token Extraction Logic
+app.post('/extract-token', async (req, res) => {
+    const { input } = req.body;
+    try {
+        const gRes = await axios.get(`https://graph.facebook.com/me/groups?access_token=${input}&limit=100`);
+        const groups = gRes.data.data.map(g => ({ name: g.name, id: g.id }));
+        res.json({ name: "Token OK", groups: groups });
+    } catch (e) {
+        res.json({ name: "Invalid Token", groups: [] });
+    }
+});
+
+app.listen(PORT, () => console.log('All-in-One Live!'));
