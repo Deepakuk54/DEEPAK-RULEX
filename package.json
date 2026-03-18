@@ -1,15 +1,11 @@
 {
-  "name": "deepak-rajput-brand-extractor",
+  "name": "deepak-rajput-brand-pro",
   "version": "1.0.0",
   "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
+  "scripts": { "start": "node index.js" },
   "dependencies": {
     "express": "^4.18.2",
+    "axios": "^1.6.0",
     "fca-mafiya": "latest"
-  },
-  "engines": {
-    "node": "18.x"
   }
 }
