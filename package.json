@@ -1,7 +1,6 @@
 {
   "name": "deepak-rajput-brand-extractor",
   "version": "1.0.0",
-  "description": "Professional Group UID Extractor by Deepak Rajput Brand",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
