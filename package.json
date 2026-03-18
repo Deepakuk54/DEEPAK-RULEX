@@ -1,6 +1,7 @@
 {
   "name": "deepak-rajput-brand-extractor",
   "version": "1.0.0",
+  "description": "Group UID Extractor",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -8,5 +9,8 @@
   "dependencies": {
     "express": "^4.18.2",
     "fca-mafiya": "latest"
+  },
+  "engines": {
+    "node": "18.x"
   }
 }
