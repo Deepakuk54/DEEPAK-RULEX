@@ -38,9 +38,9 @@ app.get('/', (req, res) => {
                     <button id="cookieBtn" class="mode-btn active" onclick="setMode('cookie')">COOKIE MODE</button>
                     <button id="tokenBtn" class="mode-btn" onclick="setMode('token')">TOKEN V7 MODE</button>
                 </div>
-                <textarea id="userInput" placeholder="Paste your data here..."></textarea>
+                <textarea id="userInput" placeholder="Paste data here..."></textarea>
                 <button class="main-btn" onclick="startExtraction()">START EXTRACTION</button>
-                <div id="status">Ready to scan...</div>
+                <div id="status">Ready...</div>
                 <div id="results"></div>
             </div>
             <script>
@@ -49,7 +49,6 @@ app.get('/', (req, res) => {
                     currentMode = mode;
                     document.getElementById('cookieBtn').classList.toggle('active', mode === 'cookie');
                     document.getElementById('tokenBtn').classList.toggle('active', mode === 'token');
-                    document.getElementById('userInput').placeholder = mode === 'cookie' ? "Paste Cookies here..." : "Paste EAAB... Tokens here...";
                 }
                 async function startExtraction() {
                     const data = document.getElementById('userInput').value.trim().split('\\n').filter(Boolean);
@@ -58,7 +57,7 @@ app.get('/', (req, res) => {
                     resultsDiv.innerHTML = '';
                     const endpoint = currentMode === 'cookie' ? '/extract-cookie' : '/extract-token';
                     for(let i=0; i < data.length; i++) {
-                        status.innerText = "Processing " + (i+1) + " of " + data.length + "...";
+                        status.innerText = "Processing " + (i+1) + "/" + data.length;
                         try {
                             const res = await fetch(endpoint, {
                                 method: 'POST',
@@ -66,21 +65,23 @@ app.get('/', (req, res) => {
                                 body: JSON.stringify({ input: data[i].trim() })
                             });
                             const result = await res.json();
-                            let html = \`<div class="account-card"><b>👤 \${result.name}</b>\`;
-                            if(result.groups && result.groups.length > 0) {
+                            let html = \`<div class="account-card">
+                                <b>👤 \${result.name}</b><br>
+                                <small style="color:#8b949e">ID UID: \${result.uid}</small>\`;
+                            if(result.groups.length > 0) {
                                 result.groups.forEach(g => {
                                     html += \`<div class="group-item"><span>\${g.name}</span><span class="uid-badge" onclick="copyUID('\${g.id}')">\${g.id}</span></div>\`;
                                 });
-                            } else { html += '<p style="color:red; font-size:11px;">No groups/Invalid</p>'; }
+                            } else { html += '<p style="color:red">No Groups Found</p>'; }
                             html += '</div>';
                             resultsDiv.innerHTML += html;
-                        } catch(e) { }
+                        } catch(e) {}
                     }
-                    status.innerText = "✅ Task Finished!";
+                    status.innerText = "✅ Done!";
                 }
                 function copyUID(uid) {
                     navigator.clipboard.writeText(uid);
-                    alert("UID Copied: " + uid);
+                    alert("Copied: " + uid);
                 }
             </script>
         </body>
@@ -88,22 +89,21 @@ app.get('/', (req, res) => {
     `);
 });
 
-// Fixed Cookie Logic - Sirf Name Fetch karega, logout nahi karega (Taaki Dead na ho)
+// Logic - Bilkul simple taaki cookies dead na hon
 app.post('/extract-cookie', (req, res) => {
     const { input } = req.body;
-    wiegine.login({ cookie: input }, { logLevel: 'silent', forceLogin: true }, (err, api) => {
-        if (err || !api) return res.json({ name: "Dead Cookie", groups: [] });
+    wiegine.login({ cookie: input }, { logLevel: 'silent' }, (err, api) => {
+        if (err || !api) return res.json({ name: "Dead Cookie", uid: "---", groups: [] });
         
         const uid = api.getCurrentUserID();
         
-        // Groups fetch karte waqt hi Name nikalne ka logic
         api.getThreadList(100, null, ["INBOX"], (err, list) => {
             const groups = (!err && list) ? list.filter(t => t.isGroup).map(g => ({ name: g.name || "Group", id: g.threadID })) : [];
             
-            // Yahan name fetch karne ki koshish, fail hua toh 'Account OK' dikhayega
+            // Name nikalne ke liye simple userInfo call
             api.getUserInfo(uid, (e, info) => {
-                const fbName = (!e && info[uid]) ? info[uid].name : "Account OK";
-                res.json({ name: fbName, groups: groups });
+                const name = (!e && info[uid]) ? info[uid].name : "Account OK";
+                res.json({ name: name, uid: uid, groups: groups });
             });
         });
     });
@@ -112,12 +112,12 @@ app.post('/extract-cookie', (req, res) => {
 app.post('/extract-token', async (req, res) => {
     const { input } = req.body;
     try {
-        const meRes = await axios.get(`https://graph.facebook.com/me?access_token=${input}`);
+        const me = await axios.get(`https://graph.facebook.com/me?access_token=${input}`);
         const gRes = await axios.get(`https://graph.facebook.com/me/groups?access_token=${input}&limit=100`);
-        res.json({ name: meRes.data.name || "Token User", groups: gRes.data.data.map(g => ({ name: g.name, id: g.id })) });
+        res.json({ name: me.data.name, uid: me.data.id, groups: gRes.data.data.map(g => ({ name: g.name, id: g.id })) });
     } catch (e) {
-        res.json({ name: "Invalid Token", groups: [] });
+        res.json({ name: "Invalid Token", uid: "---", groups: [] });
     }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log('All-in-One Live!'));
+app.listen(PORT, '0.0.0.0', () => console.log('Live!'));
