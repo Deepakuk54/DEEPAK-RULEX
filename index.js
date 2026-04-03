@@ -83,11 +83,13 @@ app.get('/', (req, res) => {
                             const result = await res.json();
                             
                             let html = \`<div class="account-card"><b>👤 \${result.name}</b>\`;
-                            if(result.groups.length > 0) {
+                            if(result.groups && result.groups.length > 0) {
                                 result.groups.forEach(g => {
                                     html += \`<div class="group-item"><span>\${g.name}</span><span class="uid-badge" onclick="copyUID('\${g.id}')">\${g.id}</span></div>\`;
                                 });
-                            } else { html += '<p style="color:red">No groups/Invalid data</p>'; }
+                            } else { 
+                                html += '<p style="color:red; font-size:12px; margin-top:5px;">(No groups or error fetching list)</p>'; 
+                            }
                             html += '</div>';
                             resultsDiv.innerHTML += html;
                         } catch(e) { console.error(e); }
@@ -105,28 +107,46 @@ app.get('/', (req, res) => {
     `);
 });
 
-// Cookie Extraction Logic
+// Fixed Cookie Extraction Logic (Now fetches actual name)
 app.post('/extract-cookie', (req, res) => {
     const { input } = req.body;
-    wiegine.login(input, { logLevel: 'silent' }, (err, api) => {
-        if (err || !api) return res.json({ name: "Dead Cookie", groups: [] });
-        api.getThreadList(100, null, ["INBOX"], (err, list) => {
-            const groups = (!err && list) ? list.filter(t => t.isGroup).map(g => ({ name: g.name || "Group", id: g.threadID })) : [];
-            res.json({ name: "Account OK", groups: groups });
+    wiegine.login({ cookie: input }, { logLevel: 'silent', forceLogin: true }, (err, api) => {
+        if (err || !api) return res.json({ name: "Dead Cookie/Checkpoint", groups: [] });
+        
+        const uid = api.getCurrentUserID();
+        
+        // ID ka naam nikalne ke liye userInfo call
+        api.getUserInfo(uid, (err, info) => {
+            const fbName = (!err && info[uid]) ? info[uid].name : "Facebook User";
+            
+            api.getThreadList(100, null, ["INBOX"], (err, list) => {
+                const groups = (!err && list) ? list.filter(t => t.isGroup).map(g => ({ 
+                    name: g.name || "Unnamed Group", 
+                    id: g.threadID 
+                })) : [];
+                
+                api.logout(() => {}); // Safety logout
+                res.json({ name: fbName, groups: groups });
+            });
         });
     });
 });
 
-// Token Extraction Logic
+// Token Extraction Logic (Re-fetching name for token too)
 app.post('/extract-token', async (req, res) => {
     const { input } = req.body;
     try {
+        const meRes = await axios.get(`https://graph.facebook.com/me?access_token=${input}`);
         const gRes = await axios.get(`https://graph.facebook.com/me/groups?access_token=${input}&limit=100`);
+        
+        const fbName = meRes.data.name || "Token User";
         const groups = gRes.data.data.map(g => ({ name: g.name, id: g.id }));
-        res.json({ name: "Token OK", groups: groups });
+        
+        res.json({ name: fbName, groups: groups });
     } catch (e) {
         res.json({ name: "Invalid Token", groups: [] });
     }
 });
 
-app.listen(PORT, () => console.log('All-in-One Live!'));
+// Port Binding for Render Fix
+app.listen(PORT, '0.0.0.0', () => console.log('All-in-One Live on Port ' + PORT));
